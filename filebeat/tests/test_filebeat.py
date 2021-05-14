@@ -2,35 +2,18 @@
 # All rights reserved
 # Licensed under Simplified BSD License (see LICENSE)
 
-import os
 import re
-from collections import namedtuple
 
 import mock
 import pytest
 
 from datadog_checks.filebeat import FilebeatCheck
 
-from .common import BAD_ENDPOINT, registry_file_path
-
-mocked_file_stats = namedtuple("mocked_file_stats", ["st_size", "st_ino", "st_dev"])
-
-
-# allows mocking `os.stat` only for certain paths; for all others it will call
-# the actual function - needed as a number of test helpers do make calls to it
-def mocked_os_stat(mocked_paths_and_stats):
-    vanilla_os_stat = os.stat
-
-    def internal_mock(path):
-        if path in mocked_paths_and_stats:
-            return mocked_paths_and_stats[path]
-        return vanilla_os_stat(path)
-
-    return mock.patch.object(os, "stat", side_effect=internal_mock)
+from .common import BAD_ENDPOINT
 
 
 def _build_instance(name, stats_endpoint=None, only_metrics=None, timeout=None, normalize_metrics=None):
-    instance = {"registry_file_path": registry_file_path(name)}
+    instance = {}
 
     if stats_endpoint is not None:
         instance["stats_endpoint"] = stats_endpoint
@@ -45,77 +28,6 @@ def _build_instance(name, stats_endpoint=None, only_metrics=None, timeout=None, 
         instance["normalize_metrics"] = normalize_metrics
 
     return instance
-
-
-def test_registry_happy_path(aggregator):
-    check = FilebeatCheck("filebeat", {}, {})
-    with mocked_os_stat(
-        {
-            "/test_dd_agent/var/log/nginx/access.log": mocked_file_stats(394154, 277025, 51713),
-            "/test_dd_agent/var/log/syslog": mocked_file_stats(1024917, 152172, 51713),
-        }
-    ):
-        check.check(_build_instance("happy_path"))
-
-    aggregator.assert_metric(
-        "filebeat.registry.unprocessed_bytes", value=2407, tags=["source:/test_dd_agent/var/log/nginx/access.log"]
-    )
-    aggregator.assert_metric(
-        "filebeat.registry.unprocessed_bytes", value=0, tags=["source:/test_dd_agent/var/log/syslog"]
-    )
-
-
-# tests that we still support the format from filebeat < 5
-def test_registry_happy_path_with_legacy_format(aggregator):
-    check = FilebeatCheck("filebeat", {}, {})
-    with mocked_os_stat(
-        {
-            "/test_dd_agent/var/log/nginx/access.log": mocked_file_stats(394154, 277025, 51713),
-            "/test_dd_agent/var/log/syslog": mocked_file_stats(1024917, 152172, 51713),
-        }
-    ):
-        check.check(_build_instance("happy_path_legacy_format"))
-
-    aggregator.assert_metric(
-        "filebeat.registry.unprocessed_bytes", value=2407, tags=["source:/test_dd_agent/var/log/nginx/access.log"]
-    )
-    aggregator.assert_metric(
-        "filebeat.registry.unprocessed_bytes", value=0, tags=["source:/test_dd_agent/var/log/syslog"]
-    )
-
-
-def test_bad_config():
-    check = FilebeatCheck("filebeat", {}, {})
-    with pytest.raises(Exception) as excinfo:
-        check.check({})
-        assert "an absolute path to a filebeat registry path must be specified" in excinfo.value
-
-
-def test_missing_registry_file(aggregator):
-    check = FilebeatCheck("filebeat", {}, {})
-    # tests that it simply silently ignores it
-    check.check(_build_instance("i_dont_exist"))
-    aggregator.assert_metric("filebeat.registry.unprocessed_bytes", count=0)
-
-
-def test_missing_source_file(aggregator):
-    check = FilebeatCheck("filebeat", {}, {})
-    check.check(_build_instance("missing_source_file"))
-    aggregator.assert_metric("filebeat.registry.unprocessed_bytes", count=0)
-
-
-def test_source_file_inode_has_changed(aggregator):
-    check = FilebeatCheck("filebeat", {}, {})
-    with mocked_os_stat({"/test_dd_agent/var/log/syslog": mocked_file_stats(1024917, 152171, 51713)}):
-        check.check(_build_instance("single_source"))
-    aggregator.assert_metric("filebeat.registry.unprocessed_bytes", count=0)
-
-
-def test_source_file_device_has_changed(aggregator):
-    check = FilebeatCheck("filebeat", {}, {})
-    with mocked_os_stat({"/test_dd_agent/var/log/syslog": mocked_file_stats(1024917, 152171, 51714)}):
-        check.check(_build_instance("single_source"))
-    aggregator.assert_metric("filebeat.registry.unprocessed_bytes", count=0)
 
 
 def generate_http_profiler_body(body_update):

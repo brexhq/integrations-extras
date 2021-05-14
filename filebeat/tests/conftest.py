@@ -4,11 +4,10 @@ import pytest
 
 from datadog_checks.dev.docker import docker_run
 
-from .common import DOCKER_DIR, ENDPOINT, URL, registry_file_path
+from .common import DOCKER_DIR, ENDPOINT, URL
 
 INSTANCE = {
     "stats_endpoint": ENDPOINT,
-    "registry_file_path": registry_file_path("empty"),
 }
 
 

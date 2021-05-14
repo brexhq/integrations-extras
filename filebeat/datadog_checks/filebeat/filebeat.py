@@ -3,10 +3,7 @@
 # Licensed under Simplified BSD License (see LICENSE)
 
 # stdlib
-import errno
-import json
 import numbers
-import os
 import re
 import sre_constants
 
@@ -162,10 +159,6 @@ class FilebeatCheckInstanceConfig:
     _only_metrics_regexes = None
 
     def __init__(self, instance):
-        self._registry_file_path = instance.get("registry_file_path")
-        if self._registry_file_path is None:
-            raise Exception("An absolute path to a filebeat registry path must be specified")
-
         self._stats_endpoint = instance.get("stats_endpoint")
 
         self._only_metrics = instance.get("only_metrics", [])
@@ -178,10 +171,6 @@ class FilebeatCheckInstanceConfig:
         self._timeout = instance.get("timeout", 2)
         if not isinstance(self._timeout, numbers.Real) or self._timeout <= 0:
             raise Exception("If given, filebeats timeout must be a positive number, got %s" % (self._timeout,))
-
-    @property
-    def registry_file_path(self):
-        return self._registry_file_path
 
     @property
     def stats_endpoint(self):
@@ -237,51 +226,7 @@ class FilebeatCheck(AgentCheck):
             profiler = FilebeatCheckHttpProfiler(config)
             self.instance_cache[instance_key] = {"config": config, "profiler": profiler}
 
-        self._process_registry(config)
         self._gather_http_profiler_metrics(config, profiler, normalize_metrics)
-
-    def _process_registry(self, config):
-        registry_contents = self._parse_registry_file(config.registry_file_path)
-
-        if isinstance(registry_contents, dict):
-            # filebeat version < 5
-            registry_contents = registry_contents.values()
-
-        for item in registry_contents:
-            self._process_registry_item(item)
-
-    def _parse_registry_file(self, registry_file_path):
-        try:
-            with open(registry_file_path) as registry_file:
-                return json.load(registry_file)
-        except IOError as ex:
-            self.log.error("Cannot read the registry log file at %s: %s", registry_file_path, ex)
-
-            if ex.errno == errno.EACCES:
-                self.log.error(
-                    "You might be interesting in having a look at " "https://github.com/elastic/beats/pull/6455"
-                )
-
-            return []
-
-    def _process_registry_item(self, item):
-        source = item["source"]
-        offset = item["offset"]
-
-        try:
-            stats = os.stat(source)
-
-            if self._is_same_file(stats, item["FileStateOS"]):
-                unprocessed_bytes = stats.st_size - offset
-
-                self.gauge("filebeat.registry.unprocessed_bytes", unprocessed_bytes, tags=["source:{0}".format(source)])
-            else:
-                self.log.debug("Filebeat source %s appears to have changed", source)
-        except OSError:
-            self.log.debug("Unable to get stats on filebeat source %s", source)
-
-    def _is_same_file(self, stats, file_state_os):
-        return stats.st_dev == file_state_os["device"] and stats.st_ino == file_state_os["inode"]
 
     def _gather_http_profiler_metrics(self, config, profiler, normalize_metrics):
         tags = ["stats_endpoint:{0}".format(config.stats_endpoint)]
