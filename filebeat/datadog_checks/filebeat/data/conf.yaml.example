@@ -12,14 +12,6 @@ init_config:
 ## Every instance is scheduled independent of the others.
 #
 instances:
-
-    ## @param registry_file_path - string - required
-    ## The absolute path to the registry file used by Filebeat.
-    ##
-    ## See https://www.elastic.co/guide/en/beats/filebeat/current/migration-registry-file.html
-    #
-  - registry_file_path: /var/lib/filebeat/registry
-
     ## @param stats_endpoint - string - required
     ## If Filebeat has been started with the `--httpprof [HOST]:PORT` option, then
     ## the Datadog agent can gather data about the metrics Filebeat exposes to  http://<HOST>:<PORT>/debug/vars.
@@ -27,7 +19,7 @@ instances:
     ## See https://www.elastic.co/guide/en/beats/filebeat/current/command-line-options.html
     ## For autodiscovery, use http://%%host%%:%%port%%/stats
     #
-    stats_endpoint: http://localhost:2828/stats
+  - stats_endpoint: http://localhost:2828/stats
 
     ## @param normalize_metrics - boolean - optional - default: false
     ## Normalize metric names to be prefixed with the integration name.

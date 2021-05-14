@@ -37,7 +37,7 @@ If you are using Agent v6.8+ follow the instructions below to install the Filebe
 
 ### Metrics
 
-See [metadata.csv][11] for a list of metrics provided by this check.
+TODO: Fill in metrics from stats endpoint.
 
 ### Events
 
